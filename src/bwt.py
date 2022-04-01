@@ -1,8 +1,10 @@
 """Burrows-Wheeler transform."""
 
-from collections import Counter
 from alphabet import Alphabet
-from sa import prefix_doubling
+from sa import (
+    buckets,
+    prefix_doubling,
+)
 
 # I would normally use '\x00' for the sentinel, but doctest doesn't
 # like that (because it is gods damned stupid). For this example,
@@ -25,17 +27,11 @@ def ctable(z: list[int]) -> list[int]:
     """
     Compute the C table for a mapped string.
 
-    >>> ctable([1, 2, 1, 0])
-    [0, 1, 3]
+    >>> ctable([1, 2, 1, 4, 5, 0])
+    [0, 1, 3, 4, 4, 5]
     """
-    sigma = max(z) + 1
-    counts = Counter(z)
-    ctab = [0] * sigma
-    acc = 0
-    for i, _ in enumerate(ctab):
-        ctab[i] = acc
-        acc += counts[i]
-    return ctab
+    # The C table is really just the buckets from a bucket sort.
+    return buckets(z)
 
 
 def otable(z: list[int]) -> list[list[int]]:

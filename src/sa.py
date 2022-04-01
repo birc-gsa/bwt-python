@@ -341,13 +341,14 @@ i-component in order. Within each i-block, we need to sort the j's, but that
 is just one integer, so four bucket-sorts of bytes.
 
 There are different ways of doing this, but they are pretty much all
-highly efficient. The code below is just one approach, and should you
-feel adventurous, you can try other approaches. In any case, I suggest
-you read the code to get a feeling for this approach to suffix array
-construction.
+highly efficient. I haven't done it in the Python code, though, since
+Python doesn't have fixed-sized integers, and it is slightly more complicated
+(and a bit more ugly) to radix sort Python's kind of integers. If you want
+to see the full solution, check out e.g. the C or Go implementations.
 """
 
 from typing import Iterable
+from collections import Counter
 from dataclasses import dataclass
 from alphabet import Alphabet
 
@@ -367,16 +368,37 @@ class Rank:
         return self.ranks[i] if i < len(self.ranks) else 0
 
 
+def buckets(keys: list[int]) -> list[int]:
+    """Compute bucket indices for keys."""
+    counts = Counter(keys)
+    buckets = [0] * (max(counts.keys()) + 1)
+    for i, _ in enumerate(buckets):
+        # for i=0 we rely on wrap around and default values
+        buckets[i] = buckets[i-1] + counts[i-1]
+    return buckets
+
+
 def sort_bucket_with_rank(bucket: list[int], k: int, rank: Rank) -> list[int]:
     """
     Return the suffixes in bucket, sorted with respect to rank at offset k.
+
+    The function sorts a slice of the full array, and normally that would be
+    expensive as we don't want to slice when we don't have to, but in this
+    case we need to update the entire sliced part of the original array.
+    It *would* be more efficient to just index, but asymptotically it
+    doesn't matter, and since Python will never give us speed anyway, we
+    might as well enjoy the nicer syntax and use slices.
     """
-    # FIXME: radix sort here
-    bucket.sort(key=lambda i: rank[i + k])
-    return bucket
+    keys = [rank[i + k] for i in bucket]
+    out = [0] * len(bucket)
+    buck = buckets(keys)
+    for j, i in enumerate(bucket):
+        out[buck[keys[j]]] = i
+        buck[keys[j]] += 1
+    return out
 
 
-def buckets(sa: list[int], rank: Rank) -> Iterable[tuple[int, int]]:
+def rank_buckets(sa: list[int], rank: Rank) -> Iterable[tuple[int, int]]:
     """
     Iterate through the buckets in sa.
 
@@ -397,7 +419,7 @@ def sort_with_rank(sa: list[int], k: int, rank: Rank) -> list[int]:
 
     We both modify and return sa; sometimes returning is convinient.
     """
-    for start, end in buckets(sa, rank):
+    for start, end in rank_buckets(sa, rank):
         if end - start > 1:   # size 1 buckets are already sorted
             sa[start:end] = sort_bucket_with_rank(sa[start:end], k, rank)
     return sa
@@ -412,10 +434,10 @@ def update_rank(sa: list[int], k: int, rank: Rank) -> tuple[int, Rank]:
     we have sorted up to prefix length k, which we will have done here).
 
     After that, it is a simple matter of running through the pairs and building
-    an alphabet. Notice the indexing (i indices according to the order of pairs while
-    j indices according to sa). This is necessary since the order in sa is the
-    curren sorted order while rank always has the suffixes in the order at which
-    they appear in the string.
+    an alphabet. Notice the indexing (i indices according to the order of pairs
+    while j indices according to sa). This is necessary since the order in sa
+    is the curren sorted order while rank always has the suffixes in the order
+    at which they appear in the string.
     """
     pairs = [(rank[i], rank[i+k]) for i in sa]
     pairs.append(pairs[0])  # removes a special case in the loop
