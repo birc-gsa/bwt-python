@@ -348,12 +348,29 @@ construction.
 """
 
 from collections import defaultdict
+from dataclasses import dataclass
+from alphabet import Alphabet
+
+
+@dataclass
+class Rank:
+    """Wrapper around a list that handles out-of-bounds indexing."""
+
+    ranks: list[int]
+
+    def __setitem__(self, i: int, val: int) -> None:
+        """Set the rank for a suffix."""
+        self.ranks[i] = val
+
+    def __getitem__(self, i: int) -> int:
+        """Get the rank of a suffix."""
+        return self.ranks[i] if i < len(self.ranks) else 0
 
 
 def collect_buckets(x: str, col: int) -> dict[int, int]:
     """Compute the bucket indices for x at column col."""
     counts: dict[int, int] = defaultdict(lambda: 0)
-    for i in range(len(x) + 1):
+    for i in range(len(x)):
         counts[key(x, i, col)] += 1
 
     buckets = {}
@@ -367,7 +384,7 @@ def collect_buckets(x: str, col: int) -> dict[int, int]:
 
 def key(x: str, suf: int, col: int) -> int:
     """Compute the key for suffix x[suf:] for column col."""
-    return ord(x[suf+col]) if suf+col < len(x) else 0
+    return ord(x[(suf+col) % len(x)])
 
 
 def b_sort(x: str, sufs: list[int], col: int) -> list[int]:
@@ -383,6 +400,31 @@ def b_sort(x: str, sufs: list[int], col: int) -> list[int]:
     return out
 
 
+def sort_bucket_with_rank(bucket: list[int], k: int, rank: Rank) -> list[int]:
+    """Return the suffixes in bucket, sorted with respect to rank at offset k."""
+    # FIXME: radix sort here
+    bucket.sort(key=lambda i: rank[i + k])
+    return bucket
+
+
+def sort_with_rank(sa: list[int], k: int, rank: Rank) -> list[int]:
+    """Sort sa as pairs taken from rank[sa[i]] and rank[sa[i]+k]."""
+    start, end = 0, 0
+    while start < len(sa):
+        # Find the end of the current bucket
+        while end < len(sa) and rank[sa[start]] == rank[sa[end]]:
+            end += 1
+
+        if end - start > 1:
+            # we have a bucket to sort
+            sa[start:end] = sort_bucket_with_rank(sa[start:end], k, rank)
+
+        start = end  # start on the next bucket
+
+    # we both modify and return sa; sometimes returning is convinient
+    return sa
+
+
 def prefix_doubling(x: str) -> list[int]:
     """
     Compute the suffix array for x using a least-significant digit radix sort.
@@ -392,7 +434,16 @@ def prefix_doubling(x: str) -> list[int]:
     >>> prefix_doubling('mississippi')
     [11, 10, 7, 4, 1, 0, 9, 8, 6, 3, 5, 2]
     """
-    sufs = list(range(len(x)+1))
+    x += '\x00'  # add sentinel (could be more efficient with a bit more code)
+    alpha = Alphabet(x)
+    rank = Rank(alpha.map(x))
+    sa = sort_bucket_with_rank(list(range(len(x))), 0, rank)
+
+    sort_with_rank(sa, 1, rank)  # FIXME: experiment
+    for i, j in enumerate(sa):
+        print(f"sa[{i:2}] = {j:2}, {x[j:]}")
+
+    sufs = sa
     for col in reversed(range(len(sufs))):
         sufs = b_sort(x, sufs, col)
     return sufs
