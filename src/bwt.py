@@ -1,6 +1,7 @@
 """Burrows-Wheeler transform."""
 
 from collections import Counter
+from alphabet import Alphabet
 from sa import prefix_doubling
 
 # I would normally use '\x00' for the sentinel, but doctest doesn't
@@ -18,23 +19,6 @@ def bwt(x: str) -> str:
     """
     sa = prefix_doubling(x)
     return ''.join([x[i - 1] if i > 0 else '$' for i in sa])
-
-
-class Alphabet:
-    """Remapping alphabet."""
-
-    def __init__(self, x: str):
-        """Build the alphabet from a string."""
-        self._map = {a: i for i, a in enumerate(sorted(set(x)))}
-        self._revmap = {b: a for a, b in self._map.items()}
-
-    def map(self, x: str) -> list[int]:
-        """Map a string to this alphabet."""
-        return [self._map[a] for a in x]
-
-    def revmap(self, y: list[int]) -> str:
-        """Reverse a mapped string."""
-        return "".join(self._revmap[a] for a in y)
 
 
 def ctable(z: list[int]) -> list[int]:
@@ -58,8 +42,13 @@ def otable(z: list[int]) -> list[list[int]]:
     """
     Compute the O table for a mapped string.
 
-    >>> otable([1, 2, 0, 2, 3])
-    [[0, 0, 0, 1, 1, 1], [0, 1, 1, 1, 1, 1], [0, 0, 1, 1, 2, 2], [0, 0, 0, 0, 0, 1]]
+    >>> otab = otable([1, 2, 0, 2, 3])
+    >>> for a, row in enumerate(otab):
+    ...    print(f"{a}: {row}")
+    0: [0, 0, 0, 1, 1, 1]
+    1: [0, 1, 1, 1, 1, 1]
+    2: [0, 0, 1, 1, 2, 2]
+    3: [0, 0, 0, 0, 0, 1]
     """
     sigma = max(z) + 1
     otab = [

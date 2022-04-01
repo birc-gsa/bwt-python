@@ -1,7 +1,6 @@
 """
 Suffix array constructing using prefix-doubling.
 
-
 If you are here, you must want to learn about prefix doubling.
 Good for you! You make me proud.
 
@@ -60,7 +59,7 @@ Then we sort them with respect to their length-2 prefixes:
 [si]ppi$
 [ss]issippi$
 [ss]ippi$
-    
+
 Again, they are not quite sorted. We can recognise that there might
 be more work to do by the prefixes not being unique, similar to
 how it works with skew or SAIS; so if the prefixes we have sorted
@@ -79,7 +78,7 @@ the length of prefixes we look at, now to length 4, and sort again.
 [siss]ippi$
 [ssip]pi$
 [ssis]sippi$
-    
+
 Once again the prefixes aren't unique (we have 'issi' twice) and thus
 we need another doubling of prefix length, now to length 8.
 
@@ -145,7 +144,7 @@ followed by the number for i+1:
 
  0: [2]ississippi$ is followed by 1: [1]ssissippi$ so the pair is [2,1]
  1: [1]ssissippi$ is followed by 2: [4]sissippi$ so the pair is [1,4]
-     
+
 and so on:
 
  0: [2,1]ssissippi$
