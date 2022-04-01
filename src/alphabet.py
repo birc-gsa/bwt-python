@@ -8,6 +8,7 @@ class Alphabet:
         """Build the alphabet from a string."""
         self._map = {a: i for i, a in enumerate(sorted(set(x)))}
         self._revmap = {b: a for a, b in self._map.items()}
+        self.sigma = len(self._map)
 
     def map(self, x: str) -> list[int]:
         """Map a string to this alphabet."""

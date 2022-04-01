@@ -347,7 +347,7 @@ you read the code to get a feeling for this approach to suffix array
 construction.
 """
 
-from collections import defaultdict
+from typing import Iterable
 from dataclasses import dataclass
 from alphabet import Alphabet
 
@@ -367,62 +367,63 @@ class Rank:
         return self.ranks[i] if i < len(self.ranks) else 0
 
 
-def collect_buckets(x: str, col: int) -> dict[int, int]:
-    """Compute the bucket indices for x at column col."""
-    counts: dict[int, int] = defaultdict(lambda: 0)
-    for i in range(len(x)):
-        counts[key(x, i, col)] += 1
-
-    buckets = {}
-    count = 0
-    for a in sorted(counts):
-        buckets[a] = count
-        count += counts[a]
-
-    return buckets
-
-
-def key(x: str, suf: int, col: int) -> int:
-    """Compute the key for suffix x[suf:] for column col."""
-    return ord(x[(suf+col) % len(x)])
-
-
-def b_sort(x: str, sufs: list[int], col: int) -> list[int]:
-    """Bucket-sort the indices in idx using keys from the string x."""
-    buckets = collect_buckets(x, col)
-
-    out = [0] * len(sufs)
-    for i in sufs:
-        a = key(x, i, col)
-        out[buckets[a]] = i
-        buckets[a] += 1
-
-    return out
-
-
 def sort_bucket_with_rank(bucket: list[int], k: int, rank: Rank) -> list[int]:
-    """Return the suffixes in bucket, sorted with respect to rank at offset k."""
+    """
+    Return the suffixes in bucket, sorted with respect to rank at offset k.
+    """
     # FIXME: radix sort here
     bucket.sort(key=lambda i: rank[i + k])
     return bucket
 
 
-def sort_with_rank(sa: list[int], k: int, rank: Rank) -> list[int]:
-    """Sort sa as pairs taken from rank[sa[i]] and rank[sa[i]+k]."""
+def buckets(sa: list[int], rank: Rank) -> Iterable[tuple[int, int]]:
+    """
+    Iterate through the buckets in sa.
+
+    The buckets are the intervals [i,j) where sa[k] == sa[i] for all
+    i <= k < j.
+    """
     start, end = 0, 0
     while start < len(sa):
-        # Find the end of the current bucket
         while end < len(sa) and rank[sa[start]] == rank[sa[end]]:
             end += 1
+        yield (start, end)
+        start = end
 
-        if end - start > 1:
-            # we have a bucket to sort
+
+def sort_with_rank(sa: list[int], k: int, rank: Rank) -> list[int]:
+    """
+    Sort sa as pairs taken from rank[sa[i]] and rank[sa[i]+k].
+
+    We both modify and return sa; sometimes returning is convinient.
+    """
+    for start, end in buckets(sa, rank):
+        if end - start > 1:   # size 1 buckets are already sorted
             sa[start:end] = sort_bucket_with_rank(sa[start:end], k, rank)
-
-        start = end  # start on the next bucket
-
-    # we both modify and return sa; sometimes returning is convinient
     return sa
+
+
+def update_rank(sa: list[int], k: int, rank: Rank) -> tuple[int, Rank]:
+    """
+    Update the rank according to the new ordering.
+
+    First we extract the pairs (rank[i],rank[i+k]) where we take the indices i
+    in the order they appear in sa. That way, the pairs are sorted (as long as
+    we have sorted up to prefix length k, which we will have done here).
+
+    After that, it is a simple matter of running through the pairs and building
+    an alphabet. Notice the indexing (i indices according to the order of pairs while
+    j indices according to sa). This is necessary since the order in sa is the
+    curren sorted order while rank always has the suffixes in the order at which
+    they appear in the string.
+    """
+    pairs = [(rank[i], rank[i+k]) for i in sa]
+    pairs.append(pairs[0])  # removes a special case in the loop
+    a, new_rank = 0, Rank([0] * len(pairs))
+    for i, j in enumerate(sa):
+        a += pairs[i - 1] != pairs[i]
+        new_rank[j] = a
+    return a + 1, new_rank
 
 
 def prefix_doubling(x: str) -> list[int]:
@@ -434,16 +435,15 @@ def prefix_doubling(x: str) -> list[int]:
     >>> prefix_doubling('mississippi')
     [11, 10, 7, 4, 1, 0, 9, 8, 6, 3, 5, 2]
     """
-    x += '\x00'  # add sentinel (could be more efficient with a bit more code)
+    x += '$'  # add sentinel (could be more efficient with a bit more code)
     alpha = Alphabet(x)
     rank = Rank(alpha.map(x))
     sa = sort_bucket_with_rank(list(range(len(x))), 0, rank)
 
-    sort_with_rank(sa, 1, rank)  # FIXME: experiment
-    for i, j in enumerate(sa):
-        print(f"sa[{i:2}] = {j:2}, {x[j:]}")
+    sigma, k = alpha.sigma, 1
+    while sigma < len(sa):
+        sa = sort_with_rank(sa, k, rank)
+        sigma, rank = update_rank(sa, k, rank)
+        k *= 2
 
-    sufs = sa
-    for col in reversed(range(len(sufs))):
-        sufs = b_sort(x, sufs, col)
-    return sufs
+    return sa
