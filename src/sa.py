@@ -441,11 +441,11 @@ def update_rank(sa: list[int], k: int, rank: Rank) -> tuple[int, Rank]:
     """
     pairs = [(rank[i], rank[i+k]) for i in sa]
     pairs.append(pairs[0])  # removes a special case in the loop
-    a, new_rank = 0, Rank([0] * len(pairs))
+    a, new_rank = 0, [0] * len(pairs)
     for i, j in enumerate(sa):
         a += pairs[i - 1] != pairs[i]
         new_rank[j] = a
-    return a + 1, new_rank
+    return a + 1, Rank(new_rank)
 
 
 def prefix_doubling(x: str) -> list[int]:
