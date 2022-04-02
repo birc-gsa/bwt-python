@@ -347,7 +347,6 @@ Python doesn't have fixed-sized integers, and it is slightly more complicated
 to see the full solution, check out e.g. the C or Go implementations.
 """
 
-from typing import Iterable
 from collections import Counter
 from dataclasses import dataclass
 from alphabet import Alphabet
@@ -378,50 +377,33 @@ def buckets(keys: list[int]) -> list[int]:
     return buckets
 
 
-def sort_bucket_with_rank(bucket: list[int], k: int, rank: Rank) -> list[int]:
+def sort_with_rank(sa: list[int], k: int, rank: Rank) -> list[int]:
     """
-    Return the suffixes in bucket, sorted with respect to rank at offset k.
+    Return the suffixes in sa, sorted with respect to rank at offset k.
 
-    The function sorts a slice of the full array, and normally that would be
-    expensive as we don't want to slice when we don't have to, but in this
-    case we need to update the entire sliced part of the original array.
-    It *would* be more efficient to just index, but asymptotically it
-    doesn't matter, and since Python will never give us speed anyway, we
-    might as well enjoy the nicer syntax and use slices.
+    Returns a new list of indices that are a stable sort of sa according to
+    rank[sa[i]+k].
     """
-    keys = [rank[i + k] for i in bucket]
-    out = [0] * len(bucket)
+    keys = [rank[i + k] for i in sa]
+    out = [0] * len(sa)
     buck = buckets(keys)
-    for j, i in enumerate(bucket):
+    for j, i in enumerate(sa):
         out[buck[keys[j]]] = i
         buck[keys[j]] += 1
     return out
 
 
-def rank_buckets(sa: list[int], rank: Rank) -> Iterable[tuple[int, int]]:
-    """
-    Iterate through the buckets in sa.
-
-    The buckets are the intervals [i,j) where sa[k] == sa[i] for all
-    i <= k < j.
-    """
-    start, end = 0, 0
-    while start < len(sa):
-        while end < len(sa) and rank[sa[start]] == rank[sa[end]]:
-            end += 1
-        yield (start, end)
-        start = end
-
-
-def sort_with_rank(sa: list[int], k: int, rank: Rank) -> list[int]:
+def sort_pairs(sa: list[int], k: int, rank: Rank) -> list[int]:
     """
     Sort sa as pairs taken from rank[sa[i]] and rank[sa[i]+k].
 
-    We both modify and return sa; sometimes returning is convinient.
+    The sort is a stable radix where we first sort with respect
+    to rank[sa[i]+k] and then follow with a sort of rank[sa[i]].
+
+    We return the new sorted array.
     """
-    for start, end in rank_buckets(sa, rank):
-        if end - start > 1:   # size 1 buckets are already sorted
-            sa[start:end] = sort_bucket_with_rank(sa[start:end], k, rank)
+    sa = sort_with_rank(sa, k, rank)
+    sa = sort_with_rank(sa, 0, rank)
     return sa
 
 
@@ -460,11 +442,11 @@ def prefix_doubling(x: str) -> list[int]:
     x += '$'  # add sentinel (could be more efficient with a bit more code)
     alpha = Alphabet(x)
     rank = Rank(alpha.map(x))
-    sa = sort_bucket_with_rank(list(range(len(x))), 0, rank)
+    sa = sort_with_rank(list(range(len(x))), 0, rank)
 
     sigma, k = alpha.sigma, 1
     while sigma < len(sa):
-        sa = sort_with_rank(sa, k, rank)
+        sa = sort_pairs(sa, k, rank)
         sigma, rank = update_rank(sa, k, rank)
         k *= 2
 
